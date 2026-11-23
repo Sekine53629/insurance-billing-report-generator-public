@@ -20,7 +20,9 @@ RT 系ファイルの命名規則（実物のファイル名から把握した�
       5桁 元号1+和暦年2+月2（zogn, zogp, henr, fmei, tgfp, MT系。50608=令和6年8月）、
       6桁 1+元号年月5桁（社保の fmdl）、7桁 元号1+和暦年2+月日4（労災の fmdl）
 """
+import os
 import re
+import unicodedata
 
 PATTERN = re.compile(r"""
 (?:
@@ -50,6 +52,41 @@ def pattern(name):
     return PATTERN.fullmatch(name)
 
 
+def normalize(name):
+    """判定の前にファイル名の表記ゆれをそろえる。
+
+    やること（上から順に）
+        1. 全角を半角にする（ＲＴｆｉｘｆ１… → RTfixf1…）。NFKC 正規化を使う
+        2. フォルダの部分を取りのぞく（C:\\受信\\RTfixf… → RTfixf…）
+        3. 前後と途中の空白（半角・全角・タブ）を取りのぞく
+        4. 拡張子だけ小文字にする（.CSV → .csv）
+
+    本体（RT や fixf）の大文字・小文字は変えない。
+    rtfixf… のような名前は、正規化しても合わないままにしておく。
+
+    例
+        "ＲＴｆｉｘｆ２０１４０００００００２０２３０２０８１６５２５９．ＣＳＶ"
+            -> "RTfixf2014000000020230208165259.csv"
+        "  RTfixf2014000000020230208165259.CSV "
+            -> "RTfixf2014000000020230208165259.csv"
+    """
+    name = unicodedata.normalize("NFKC", name)
+    name = name.replace("\\", "/")          # Windows の区切りも / として扱う
+    name = os.path.basename(name.strip())
+    name = re.sub(r"\s+", "", name)          # NFKC で全角空白も半角になっている
+    stem, ext = os.path.splitext(name)
+    return stem + ext.lower()
+
+
+def check(name):
+    """正規化してから判定する。合えば Match、違えば None を返す。
+
+    pattern() は元のとおり「書いてあるそのまま」で判定する。
+    手入力やコピーしたファイル名を判定するときは、こちらを使う。
+    """
+    return pattern(normalize(name))
+
+
 if __name__ == "__main__":
     names = [
         "RTfixf2014000000020230208165259.csv",   # 合う（国保）
@@ -66,3 +103,17 @@ if __name__ == "__main__":
     for name in names:
         m = pattern(name)
         print(name, "->", m.groupdict() if m else None)
+
+    print()
+    print("--- 正規化してから判定（check） ---")
+    messy = [
+        "RTfixf2014000000020230208165259.CSV",          # 拡張子が大文字 -> 合う
+        "ＲＴｆｉｘｆ２０１４０００００００２０２３０２０８１６５２５９．ｃｓｖ",  # 全角 -> 合う
+        "  RTfixf2014000000020230208165259.csv\n",      # 前後の空白・改行 -> 合う
+        "RTfixf 2 0140000000 20230208165259.csv",       # 途中の空白 -> 合う
+        r"C:\受信\RTfixf1014000000020230208170754.csv",  # フォルダ付き -> 合う
+        "rtfixf2014000000020230208165259.csv",          # 本体が小文字 -> 合わない
+    ]
+    for name in messy:
+        m = check(name)
+        print(repr(name), "->", normalize(name), "->", "合う" if m else "合わない")

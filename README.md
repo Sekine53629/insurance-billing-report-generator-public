@@ -124,12 +124,13 @@
 
 ## コードサンプル
 
-本体のコードは非公開ですが、同じ業務で使っている小さなユーティリティを 2 本、そのまま置いています。
-どちらも依存ライブラリなしで動きます（`python ファイル名.py` でサンプルが走ります）。
+本体のコードは非公開ですが、同じ業務で使っている小さなユーティリティを 3 本、そのまま置いています。
+いずれも標準ライブラリだけで動きます（`code-samples/` で `python ファイル名.py` を実行するとサンプルが走ります）。
 
 | ファイル | 内容 |
 |---|---|
-| [`code-samples/rt_filename_regex.py`](code-samples/rt_filename_regex.py) | オンライン請求の確定状況ファイル名（社保・国保・労災）を名前付きグループの正規表現で検証・分解する |
+| [`code-samples/rt_filename_regex.py`](code-samples/rt_filename_regex.py) | オンライン請求の確定状況ファイル名（社保・国保・労災）を名前付きグループの正規表現で検証・分解する。全角・空白・拡張子の大文字をそろえる `normalize()` 付き |
+| [`code-samples/rt_filename_extract.py`](code-samples/rt_filename_extract.py) | RT 系ファイル名から帳票種別・支払機関・医療機関コード・送信月・前月（診療月の見込み）を取り出す。桁数で書き方が変わる日付（西暦 14 桁・和暦 5 桁など）を読み分ける |
 | [`code-samples/drug_name_regex.py`](code-samples/drug_name_regex.py) | 医薬品名を名前・剤形・規格・単位・屋号・塩などの部品に分解するパーサー。1 本の巨大な正規表現にせず、外側から順にはがす構成 |
 
 ```python
