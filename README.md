@@ -35,58 +35,69 @@
 
 ### ログイン
 
-![ログイン](images/01_login.jpg)
+![ログイン](images/01_login.png)
 
 ### 帳票A: 入金額算出と検証（月次）
 
 取り込んだ CSV から請求確定額・入金額を支払機関別に自動集計し、レセコンの集計表と突き合わせます。
 黄色の欄は自動計算値、差額が出た場合は理由（前月分修正・当月分修正など）を入力して不明金を追い込みます。
 
-![帳票A 上部](images/02_report_a_top.jpg)
-![帳票A 差額理由](images/03_report_a_difference.jpg)
-![帳票A 支払機関別の内訳](images/04_report_a_breakdown.jpg)
+![帳票A 上部](images/02_report_a_top.png)
+![帳票A 差額理由](images/03_report_a_difference.png)
+![帳票A 支払機関別の内訳](images/04_report_a_breakdown.png)
 
 ### 帳票B: 未請求分管理
 
 返戻の再請求、月遅れ請求、月送り、保留などの「今月請求しなかった分」を個別に管理します。
 帳票A の連携項目に自動で反映されます。
 
-![帳票B](images/05_report_b.jpg)
+![帳票B](images/05_report_b.png)
 
 ### 帳票C: レセプト詳細管理
 
 レセプト単位で状態（請求済・振込完了・再請求など）とデータソース（どの CSV から来たか）を確認できます。
 
-![帳票C](images/06_report_c.jpg)
+![帳票C](images/06_report_c.png)
 
 ### 入金突合
 
 請求月ごとに「請求額（推定） − 受取額 ＝ 査定 ＋ 返戻 ＋ 未入金 ＋ 他機関で入金 − 請求票にない入金」が成り立つことを検証し、
 不明金が残った場合は金額から該当レセプトを探索します。
 
-![入金突合](images/07_reconciliation.jpg)
+![入金突合](images/07_reconciliation.png)
 
 ### 誤差追求レポート（半期）
 
 決算期（上期・下期）ごとに、発生額・未請求・返戻・再請求・入金誤差を既定の様式に展開します。
 下部では請求月ごとの「発生 → 請求 → 入金予定 → 振込」の推移と差額の内訳を表示します。
 
-![誤差追求レポート](images/08_discrepancy_report.jpg)
-![誤差追求レポート 月別](images/09_discrepancy_report_monthly.jpg)
+![誤差追求レポート](images/08_discrepancy_report.png)
+![誤差追求レポート 月別](images/09_discrepancy_report_monthly.png)
 
 ### ファイル取込
 
 フォルダや ZIP をまとめてドロップすると、ファイル名から帳票種別・支払機関・請求年月を判定して取り込みます。
 重複ファイルは自動でスキップします。
 
-![ファイル取込](images/10_file_import.jpg)
+![ファイル取込](images/10_file_import.png)
 
 ### 再請求マッチング・返戻管理
 
 返戻されたレセプトと、その後の再請求（月遅れ請求）を自動で紐づけます。自動で判断できないものは確認待ちとして残します。
 
-![マッチング](images/11_matching.jpg)
-![返戻管理](images/12_returns.jpg)
+![マッチング](images/11_matching.png)
+![返戻管理](images/12_returns.png)
+
+### 管理画面
+
+会社ごとの期首の月と薬局の所属会社を設定する画面（管理者ロールのみ）と、Django 管理サイトです。
+管理サイトでは取り込んだ CSV レコード・売掛金・帳票・操作ログをそのまま確認でき、売掛金一覧でも患者名はマスクされます。
+
+![会社・期首の設定](images/13_company_settings.png)
+![管理サイト トップ](images/14_admin_index.png)
+![管理サイト 売掛金一覧](images/15_admin_receivables.png)
+![管理サイト 取込ファイル一覧](images/16_admin_import_files.png)
+![管理サイト 操作ログ](images/17_admin_audit_log.png)
 
 ---
 
