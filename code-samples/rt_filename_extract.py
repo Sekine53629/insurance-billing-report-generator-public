@@ -4,16 +4,30 @@
     ファイル形式   : 英小文字4文字の種類（fixf など）と、その意味、拡張子
     支払機関       : 1=社保（支払基金）, 2=国保（国保連）, r=労災
     薬局のコード   : 医療機関コード（都道府県2桁 + 点数表1桁 + 機関番号7桁）
-    送った月       : ファイル名の日付が属する年月
-    前月           : 送った月の1つ前（中のデータの診療月の見込み）。1月なら前年の12月
+    ファイル名の月 : ファイル名の日付が属する年月（書いてあるそのまま）
+    月の性質       : その月が何の月か。種類で違う（送信月 / 発行月 / 未確認）
+    請求月         : レセプトを請求した月。ファイル名から決められる種類だけ入る
+    診療月(見込み) : レセプトの診療月。ファイル名から決められる種類だけ入る
+
+    ファイル名の月・請求月・診療月は別の値として持つ（同じ変数を使い回さない）。
+        送信月（fixf）   : 薬局が請求を送った月。請求月 = ファイル名の月、
+                           診療月 = その前月（1月なら前年の12月。月遅れ請求は中の明細で確認する）
+                           ※ 一括ダウンロードの名前の14桁は、公式にはダウンロードした日時。
+                             請求を確定した日はファイルの中のヘッダにある（同じ月にダウンロードする前提で読んでいる）
+        発行月（fmdl, fmei, zogn, zogp, henr）
+                         : 支払機関が帳票を出した月。1つのファイルにいろいろな診療月の
+                           レセプトが入る（取引の記録に近い）ので、請求月も診療月も
+                           ファイル名からは決めない。中の明細で決める
+        未確認（それ以外）: 何の月か確かめていないので、同じく決めない
 
 例（入力 → 出力の一部）
     RTfixf2014000000020230208165259.csv
-        → 形式 fixf（確定状況）/ 国保 / コード 0140000000 / 送った月 2023-02 / 前月 2023-01
+        → fixf（確定状況）/ 国保 / コード 0140000000
+          / ファイル名の月 2023-02（送信月）/ 請求月 2023-02 / 診療月 2023-01
     RTfixf1014000000020240115093000.csv
-        → 形式 fixf / 社保 / 送った月 2024-01 / 前月 2023-12（年をまたぐ）
-    ARTfixfr0140000020230609181251.csv
-        → 形式 fixf / 労災 / 労災番号 01400000 / 送った月 2023-06 / 前月 2023-05
+        → fixf / 社保 / ファイル名の月 2024-01（送信月）/ 請求月 2024-01 / 診療月 2023-12（年をまたぐ）
+    RTzogn2014000000050608.csv
+        → zogn（増減連絡）/ 国保 / ファイル名の月 2024-08（発行月）/ 請求月 なし / 診療月 なし
 
 命名規則は rt_filename_regex.py の先頭の説明を参照。
 ファイル名は rt_filename_regex.normalize() で全角・空白・拡張子の大文字をそろえてから読む。
@@ -31,8 +45,8 @@ KINDS = {
     "henr": "返戻内訳書",
     "skkg": "資格確認結果",
     "skks": "資格確認結果",
-    "edbn": "edbn",          # 意味は未確認
-    "fmei": "fmei",          # 意味は未確認
+    "edbn": "枝番特定結果",
+    "fmei": "振込額明細",
     "tgfp": "tgfp",          # 意味は未確認
 }
 
@@ -40,6 +54,19 @@ PAYERS = {"1": "社保", "2": "国保", "r": "労災"}
 
 # コードが9桁（点数表番号が抜ける）種類
 NINE_DIGIT_KINDS = {"skkg", "skks", "edbn"}
+
+# ファイル名の月が何の月か（種類ごと）。ここにない種類は「未確認」
+MONTH_SENT = "送信月"        # 薬局が請求を送った月
+MONTH_ISSUED = "発行月"      # 支払機関が帳票を出した月
+MONTH_UNKNOWN = "未確認"
+MONTH_ROLES = {
+    "fixf": MONTH_SENT,
+    "fmdl": MONTH_ISSUED,
+    "fmei": MONTH_ISSUED,
+    "zogn": MONTH_ISSUED,
+    "zogp": MONTH_ISSUED,
+    "henr": MONTH_ISSUED,
+}
 
 # 元号の番号 → その元号の元年の前の年（西暦 = これ + 和暦の年）
 ERAS = {"4": ("平成", 1988), "5": ("令和", 2018)}
@@ -63,6 +90,32 @@ def previous_month(year, month):
     if month == 1:
         return year - 1, 12
     return year, month - 1
+
+
+def receipt_months(kind, file_year, file_month):
+    """ファイル名の月から (月の性質, 請求月, 診療月の見込み) を出す。
+
+    請求月と診療月は (年, 月)。ファイル名から決められない種類は None。
+    ファイル名の月そのものは変えずに、別の値として返す。
+
+    例: ("fixf", 2024, 1) → ("送信月", (2024, 1), (2023, 12))
+        ("zogn", 2024, 8) → ("発行月", None, None)
+    """
+    role = MONTH_ROLES.get(kind, MONTH_UNKNOWN)
+    if role == MONTH_SENT:
+        billing_month = (file_year, file_month)
+        treatment_month = previous_month(file_year, file_month)
+        return role, billing_month, treatment_month
+    # 発行月・未確認: 中の明細ごとに違うので、ここでは決めない
+    return role, None, None
+
+
+def format_month(year_month):
+    """(年, 月) を "2024-01" の形にする。None はそのまま None。"""
+    if year_month is None:
+        return None
+    year, month = year_month
+    return f"{year}-{month:02d}"
 
 
 def wareki_to_year(era_digit, yy):
@@ -140,24 +193,27 @@ def extract(filename):
         info["都道府県番号"] = code[0:2]
         info["機関番号"] = code[2:9]
 
-    year, month, how = read_date(kind, date_digits)
-    if not 1 <= month <= 12:
+    file_year, file_month, how = read_date(kind, date_digits)
+    if not 1 <= file_month <= 12:
         raise ValueError(f"月が 1〜12 ではありません: {filename!r}")
-    py, pm = previous_month(year, month)
+    role, billing_month, treatment_month = receipt_months(kind, file_year, file_month)
     info["日付の書き方"] = how
-    info["送った月"] = f"{year}-{month:02d}"
-    info["前月(診療月の見込み)"] = f"{py}-{pm:02d}"
+    info["ファイル名の月"] = format_month((file_year, file_month))
+    info["月の性質"] = role
+    info["請求月"] = format_month(billing_month)
+    info["診療月(見込み)"] = format_month(treatment_month)
     return info
 
 
 if __name__ == "__main__":
     names = [
         "RTfixf2014000000020230208165259.csv",       # 国保・fixf
-        "RTfixf1014000000020240115093000.csv",       # 社保・1月送信 → 前月は前年12月
+        "RTfixf1014000000020240115093000.csv",       # 社保・1月送信 → 診療月は前年12月
         "ARTfixfr0140000020230609181251.csv",        # 労災
         "ＲＴｆｉｘｆ１０１４０００００００２０２３０２０８１７０７５４．ＣＳＶ",  # 全角・大文字の拡張子
-        "RTzogn2014000000050608.csv",                # 和暦5桁（令和6年8月）
-        "RTskkg1014000000202501.csv",                # コード9桁・西暦6桁
+        "RTzogn2014000000050608.csv",                # 和暦5桁（令和6年8月）。発行月 → 請求月・診療月は決めない
+        "RTfmdl10140000000150608.csv",               # 社保の振込明細（1 + 和暦5桁）。発行月
+        "RTskkg1014000000202501.csv",                # コード9桁・西暦6桁。月の性質は未確認
         "RTfixf3014000000020230208165259.csv",       # 支払機関が 3 → エラー
     ]
     for name in names:
